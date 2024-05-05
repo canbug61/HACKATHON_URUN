@@ -1,0 +1,67 @@
+import numpy as np
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+def load_audio(audio_path):
+    y, sr = librosa.load(audio_path, sr=None)
+    return y, sr
+
+def calculate_energy_bands(y, sr):
+    D = np.abs(librosa.stft(y))
+
+    rms_energy = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)
+    
+    bands = {
+        'Bas': (20, 300),
+        'Düşük-Orta': (2000, 4500),
+        'Yüksek-Orta': (4500, 7500),
+        'Derinlik': (7500, 12000),
+        'Yumuşaklık': (12000, 20000)
+    }
+
+    energy_bands = {}
+    for band, (fmin, fmax) in bands.items():
+        idx = np.where((librosa.fft_frequencies(sr=sr, n_fft=2048) >= fmin) &
+                       (librosa.fft_frequencies(sr=sr, n_fft=2048) <= fmax))[0]
+        energy = D[idx, :] 
+        band_energy = np.mean(energy, axis=0)
+        scaling_factor = rms_energy / np.max(rms_energy)
+        scaled_energy = band_energy * scaling_factor
+        scaled_energy *= 100
+        energy_bands[band] = scaled_energy
+
+    return energy_bands
+
+
+def update_plot(frame_num, bars):
+    global energy_bands
+
+    for bar, energy in zip(bars, energy_bands.values()):
+        bar.set_height(np.mean(librosa.amplitude_to_db(energy[:, frame_num])))
+
+    return bars
+
+def plot_audio_spectrum(audio_path):
+    y, sr = load_audio(audio_path)
+
+    global energy_bands
+    energy_bands = calculate_energy_bands(y, sr)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    bars = ax.bar(range(len(energy_bands)), np.zeros(len(energy_bands)), tick_label=list(energy_bands.keys()))
+
+    ax.set_ylim(0, 80)
+
+    ani = animation.FuncAnimation(fig, update_plot, fargs=(bars,), frames=y.shape[0], blit=True, interval=20)
+
+    plt.xlabel('Frekans')
+    plt.ylabel('Desibel)')
+    plt.title('Ses görselleştirici')
+    plt.show()
+
+# BURAYA BİLGİSAYARINIZDAKİ SES DOSYASININ MP3 CİNSİNDEN LOKASYONUNUN GİRİLMESİ GEREKİYOR
+audio_path = 'C:/Users/canbu/Downloads/outro.mp3'
+plot_audio_spectrum(audio_path)
